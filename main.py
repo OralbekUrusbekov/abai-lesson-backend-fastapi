@@ -103,21 +103,22 @@ def init_database():
 
         # Создание таблицы users
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                username VARCHAR(50) UNIQUE NOT NULL,
-                email VARCHAR(100) UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                role VARCHAR(20) NOT NULL CHECK (role IN ('student', 'teacher', 'parent')),
-                full_name VARCHAR(100),
-                grade VARCHAR(20),
-                school VARCHAR(100),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_login TIMESTAMP,
-                is_active BOOLEAN DEFAULT TRUE,
-                valid_email_regex = r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
-                
+        CREATE TABLE IF NOT EXISTS users (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            username VARCHAR(50) UNIQUE NOT NULL,
+            email VARCHAR(100) UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role VARCHAR(20) NOT NULL CHECK (role IN ('student', 'teacher', 'parent')),
+            full_name VARCHAR(100),
+            grade VARCHAR(20),
+            school VARCHAR(100),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login TIMESTAMP,
+            is_active BOOLEAN DEFAULT TRUE,
+            CONSTRAINT valid_email CHECK (
+                email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
             )
+        )
         ''')
 
         # Создание индексов для users
