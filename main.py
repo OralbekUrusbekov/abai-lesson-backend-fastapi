@@ -51,11 +51,11 @@ load_dotenv()
 
 # ========== КОНФИГУРАЦИЯ POSTGRESQL ==========
 DATABASE_CONFIG = {
-    "host": os.getenv("DB_HOST", "localhost"),
+    "host": os.getenv("DB_HOST", "dpg-d62tn10nputs73enl9ug-a"),
     "port": os.getenv("DB_PORT", "5432"),
-    "database": os.getenv("DB_NAME", "digital_abai"),
-    "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASSWORD", "postgres"),
+    "database": os.getenv("DB_NAME", "abai_db"),
+    "user": os.getenv("DB_USER", "oralbek"),
+    "password": os.getenv("DB_PASSWORD", "HkaWkf28DTyx8aCIRz0Pkxd0XxdpBbQL"),
 }
 
 # Создаем пул соединений
