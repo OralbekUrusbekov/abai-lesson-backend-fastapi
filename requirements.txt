@@ -50,4 +50,4 @@ watchfiles==1.1.1
 websockets==15.0.1
 yarl==1.22.0
 gtts
-speech_recognition
+SpeechRecognition
