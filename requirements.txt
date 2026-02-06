@@ -6,7 +6,7 @@ anyio==3.7.1
 argon2-cffi==25.1.0
 argon2-cffi-bindings==25.1.0
 attrs==25.4.0
-bcrypt==5.0.0
+bcrypt==5.0.0f
 certifi==2025.11.12
 cffi==2.0.0
 click==8.3.1
@@ -49,4 +49,5 @@ uvloop==0.22.1
 watchfiles==1.1.1
 websockets==15.0.1
 yarl==1.22.0
-SpeechRecognition
+gtts==2.3.2
+SpeechRecognition==3.10.0
