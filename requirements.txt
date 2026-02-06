@@ -49,5 +49,5 @@ uvloop==0.22.1
 watchfiles==1.1.1
 websockets==15.0.1
 yarl==1.22.0
-gtts==2.3.2
-SpeechRecognition==3.10.0
+gtts
+speech_recognition
