@@ -6,7 +6,7 @@ anyio==3.7.1
 argon2-cffi==25.1.0
 argon2-cffi-bindings==25.1.0
 attrs==25.4.0
-bcrypt==5.0.0f
+passlib[bcrypt]
 certifi==2025.11.12
 cffi==2.0.0
 click==8.3.1
