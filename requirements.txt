@@ -1,6 +1,7 @@
 aiohappyeyeballs==2.6.1
 aiohttp==3.13.3
 aiosignal==1.4.0
+asyncpg
 annotated-types==0.7.0
 anyio==3.7.1
 argon2-cffi==25.1.0
