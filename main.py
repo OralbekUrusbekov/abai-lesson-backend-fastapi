@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-# ========== КОНФИГУРАЦИЯ POSTGRESQL ==========
+
 DATABASE_CONFIG = {
     "host": os.getenv("DB_HOST", "dpg-d62tn10nputs73enl9ug-a.oregon-postgres.render.com"),
     "port": os.getenv("DB_PORT", "5432"),
@@ -57,7 +57,6 @@ DATABASE_CONFIG = {
     "user": os.getenv("DB_USER", "oralbek"),
     "password": os.getenv("DB_PASSWORD", "HkaWkf28DTyx8aCIRz0Pkxd0XxdpBbQL"),
 }
-
 
 # Создаем пул соединений
 connection_pool = None
@@ -1053,3 +1052,6 @@ ENVIRONMENT=development
         reload=True,
         log_level="info"
     )
+
+
+
