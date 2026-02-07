@@ -408,11 +408,9 @@ async def text_to_abai_speech_safe(text: str):
         print("❌ EMPTY TEXT")
         return None
 
-    # Текстті Абай стиліне келтіру
     text = abai_style_text(text)
-    text = text[:300]  # Сәл қысқарақ, себебі стиль ұзарады
+    text = text[:300]
     print("TEXT LEN:", len(text))
-    print("TEXT PREVIEW:", text[:150])
 
     await _tts_rate_limit()
 
@@ -421,108 +419,62 @@ async def text_to_abai_speech_safe(text: str):
 
     print("TEMP PATH:", path)
 
-    # Ең жақсы Абай дауысы
-    abai_voices = [
-        {"name": "ru-RU-DmitryNeural", "rate": "-15%", "pitch": "-25Hz", "volume": "+20%"},
-        {"name": "ru-RU-SergeyNeural", "rate": "-10%", "pitch": "-20Hz", "volume": "+15%"},
-        {"name": "ru-RU-MaksimNeural", "rate": "-12%", "pitch": "-30Hz", "volume": "+10%"},
-    ]
-
-    selected_voice = None
-
-    for voice_config in abai_voices:
-        try:
-            print(f"\n→ Trying Abai voice: {voice_config['name']}")
-
-            # SSML қолдану (дәлірек басқару үшін)
-            ssml_text = f"""
-            <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="ru-RU">
-                <voice name="{voice_config['name']}">
-                    <prosody rate="{voice_config['rate']}" pitch="{voice_config['pitch']}" volume="{voice_config['volume']}">
-                        {text}
-                    </prosody>
-                </voice>
-            </speak>
-            """
-
-            communicate = edge_tts.Communicate(
-                ssml_text,
-                voice=voice_config['name']
-            )
-
-            await communicate.save(path)
-
-            if os.path.exists(path) and os.path.getsize(path) > 1000:
-                selected_voice = voice_config['name']
-                print(f"✅ Abai voice selected: {voice_config['name']}")
-                break
-
-        except Exception as e:
-            print(f"❌ Voice {voice_config['name']} failed: {str(e)[:80]}")
-            continue
-
-    if not selected_voice:
-        print("\n🔥 ALL EDGE TTS VOICES FAILED, trying gTTS fallback...")
+    # Жай Edge TTS пайдалану
+    try:
+        import edge_tts
+        communicate = edge_tts.Communicate(text, "ru-RU-DmitryNeural")
+        await communicate.save(path)
+    except Exception as e:
+        print(f"Edge TTS қатесі: {e}")
         try:
             from gtts import gTTS
-            # gTTS үшін де ер адам дауысына ұқсату
             tts = gTTS(text=text, lang='ru')
             tts.save(path)
-            print("→ Fallback to gTTS successful")
         except Exception as e2:
-            print(f"→ gTTS fallback also failed: {str(e2)}")
-            if os.path.exists(path):
-                os.remove(path)
-            print("========== TTS FAIL END ==========\n")
+            print(f"gTTS қатесі: {e2}")
             return None
-
-    # Файлды тексеру
-    if not os.path.exists(path):
-        print("❌ FILE NOT CREATED")
-        return None
-
-    size = os.path.getsize(path)
-    print(f"FILE SIZE: {size} bytes")
-
-    if size == 0:
-        print("❌ FILE EMPTY")
-        os.remove(path)
-        return None
 
     # Файлды оқу
     try:
         with open(path, "rb") as f:
-            audio = f.read()
+            audio_bytes = f.read()
 
-        print(f"READ BYTES: {len(audio)}")
+        print(f"✅ Аудио жасалды: {len(audio_bytes)} байт")
 
-        # Қосымша аудио өңдеу (тереңдету үшін)
-        # Егер audio библиотекалары болса, мұны қолдануға болады
-        try:
-            import audioop
-            # Дыбысты тереңдету (егер audioop қол жетімді болса)
-            audio = audioop.mul(audio, 2, 1.2)  # Қарқынды арттыру
-        except:
-            pass  # Audioop жоқ болса, ештеңе жасамау
+        # Файл типін тексеру
+        file_header = audio_bytes[:4].hex()
+        print(f"Файл басы (hex): {file_header}")
+
+        # Аудио типін анықтау
+        if audio_bytes[:3] == b'ID3' or audio_bytes[0] == 0xFF:
+            content_type = "audio/mp3"
+        elif file_header.startswith('00000020'):
+            content_type = "audio/wav"
+        elif file_header.startswith('66747970'):  # 'ftyp'
+            content_type = "audio/mp4"
+        else:
+            content_type = "audio/mpeg"  # Әдепкі
+
+        print(f"Анықталған тип: {content_type}")
+
+        # Base64 деректерін жасау
+        base64_data = base64.b64encode(audio_bytes).decode()
+        result = f"data:{content_type};base64,{base64_data}"
+
+        print(f"✅ TTS сәтті аяқталды")
+        print(f"   Контент типі: {content_type}")
+        print(f"   Base64 ұзындығы: {len(base64_data)}")
+
+        return result
 
     except Exception as e:
-        print(f"🔥 READ FAIL: {e}")
-        traceback.print_exc()
+        print(f"❌ Аудионы оқу қатесі: {e}")
         return None
-
     finally:
         try:
             os.remove(path)
-            print("TEMP FILE REMOVED")
-        except Exception as e:
-            print(f"TEMP REMOVE FAIL: {e}")
-
-    print(f"✅ ABAI VOICE TTS SUCCESS")
-    print(f"   Voice: {selected_voice or 'gTTS fallback'}")
-    print("========== TTS END ==========\n")
-
-    return "data:audio/mp3;base64," + base64.b64encode(audio).decode()
-
+        except:
+            pass
 
 
 
