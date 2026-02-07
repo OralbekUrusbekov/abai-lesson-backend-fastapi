@@ -372,41 +372,100 @@ async def _tts_rate_limit():
 
 
 import edge_tts
+import asyncio
 import tempfile
-import base64
-import os
+
 
 async def text_to_abai_speech_safe(text: str):
+    print("\n========== EDGE TTS START ==========")
+
+    if not text:
+        print("❌ EMPTY TEXT")
+        return None
+
+    # Текстті қысқарту
+    text = text[:350]
+    print("TEXT LEN:", len(text))
+    print("TEXT PREVIEW:", text[:120])
+
+    await _tts_rate_limit()
+
+    # Уақытша файл жасау
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+        path = fp.name
+
+    print("TEMP PATH:", path)
+
+
+    voice = "ru-RU-SvetlanaNeural"  # Орыс тілі - әйел дауысы
+    print(f"VOICE: {voice}")
 
     try:
-        if not text:
-            return None
-
-        text = text[:500]
-
+        # Edge-TTS қолдану
         communicate = edge_tts.Communicate(
-            text,
-            voice="kk-KZ-DauletNeural",
-            rate="-8%",
-            pitch="-3Hz"
+            text=text,
+            voice=voice,
+            rate="+0%",
+            pitch="+0Hz"
         )
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-            path = fp.name
-
+        # Аудио файлға сақтау
         await communicate.save(path)
+        print("→ Edge-TTS save DONE")
 
+    except Exception as e:
+        print("\n🔥 EDGE TTS FAILED, trying fallback...")
+        print("ERROR:", str(e))
+
+        # Қате болса, көне gTTS-ке оралу
+        try:
+            from gtts import gTTS
+            tts = gTTS(text=text, lang="ru")
+            tts.save(path)
+            print("→ Fallback to gTTS successful")
+        except Exception as e2:
+            print("→ Fallback also failed:", str(e2))
+            if os.path.exists(path):
+                os.remove(path)
+            print("========== TTS FAIL END ==========\n")
+            return None
+
+    # Файлды тексеру
+    if not os.path.exists(path):
+        print("❌ FILE NOT CREATED")
+        return None
+
+    size = os.path.getsize(path)
+    print("FILE SIZE:", size)
+
+    if size == 0:
+        print("❌ FILE EMPTY")
+        os.remove(path)
+        return None
+
+    # Файлды оқу
+    try:
         with open(path, "rb") as f:
             audio = f.read()
 
-        os.remove(path)
-
-        return "data:audio/mp3;base64," + base64.b64encode(audio).decode()
+        print("READ BYTES:", len(audio))
 
     except Exception as e:
-        print("EDGE TTS ERROR:", e)
+        print("🔥 READ FAIL:", e)
+        traceback.print_exc()
         return None
 
+    finally:
+        try:
+            os.remove(path)
+            print("TEMP FILE REMOVED")
+        except Exception as e:
+            print("TEMP REMOVE FAIL:", e)
+
+    print("✅ TTS SUCCESS")
+    print("========== TTS END ==========\n")
+
+    return "data:audio/mp3;base64," + base64.b64encode(audio).decode()
 
 
 
