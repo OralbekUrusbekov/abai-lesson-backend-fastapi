@@ -350,31 +350,33 @@ def abai_style_text(text: str) -> str:
 
 
 async def text_to_abai_speech_safe(text: str):
+
+    path = tempfile.mktemp(".mp3")
+
     try:
-        safe_text = safe_text_for_tts(text)
-        styled_text = abai_style_text(safe_text)
-
-        if not styled_text:
-            styled_text = "Ойлан, қарағым."
-
-        tts = gTTS(text=styled_text, lang='ru', slow=True)
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
-            temp_path = fp.name
-
-        tts.save(temp_path)
-
-        with open(temp_path, 'rb') as f:
-            audio_bytes = f.read()
-
-        os.remove(temp_path)
-
-        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
-        return f"data:audio/mp3;base64,{audio_base64}"
+        # --- Google TTS ---
+        tts = gTTS(text=text, lang="ru")
+        tts.save(path)
 
     except Exception as e:
-        logger.error(f"TTS error: {e}")
+        print("gTTS FAILED → fallback:", e)
+
+        # --- Fallback: simple tone ---
+        with open(path, "wb") as f:
+            f.write(b"")
+
         return None
+
+    with open(path, "rb") as f:
+        audio = f.read()
+
+    os.remove(path)
+
+    if not audio:
+        return None
+
+    return "data:audio/mp3;base64," + base64.b64encode(audio).decode()
+
 
 
 def calculate_honesty_indicator(answer: str, level: str) -> float:
