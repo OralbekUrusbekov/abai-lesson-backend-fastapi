@@ -9,6 +9,8 @@ except:
     except:
         pass
 
+
+
 sys.stdout.reconfigure(encoding='utf-8') if hasattr(sys.stdout, 'reconfigure') else None
 sys.stderr.reconfigure(encoding='utf-8') if hasattr(sys.stderr, 'reconfigure') else None
 
@@ -349,34 +351,77 @@ def abai_style_text(text: str) -> str:
     return text.strip()
 
 
+
+
 async def text_to_abai_speech_safe(text: str):
 
+    print("\n========== TTS START ==========")
+    print("TEXT LEN:", len(text))
+    print("TEXT PREVIEW:", text[:120])
+
     path = tempfile.mktemp(".mp3")
+    print("TEMP PATH:", path)
 
     try:
-        # --- Google TTS ---
+        print("→ Creating gTTS object...")
         tts = gTTS(text=text, lang="ru")
+
+        print("→ Saving mp3...")
         tts.save(path)
 
+        print("→ Save DONE")
+
     except Exception as e:
-        print("gTTS FAILED → fallback:", e)
+        print("\n🔥 gTTS FAILED")
+        print("TYPE:", type(e))
+        print("ERROR:", str(e))
 
-        # --- Fallback: simple tone ---
-        with open(path, "wb") as f:
-            f.write(b"")
+        print("\nTRACEBACK:")
+        traceback.print_exc()
 
+        # файл бар ма?
+        print("FILE EXISTS AFTER FAIL:", os.path.exists(path))
+
+        if os.path.exists(path):
+            print("FILE SIZE:", os.path.getsize(path))
+
+        print("========== TTS FAIL END ==========\n")
         return None
 
-    with open(path, "rb") as f:
-        audio = f.read()
-
-    os.remove(path)
-
-    if not audio:
+    # ---------- файл тексеру ----------
+    if not os.path.exists(path):
+        print("❌ FILE NOT CREATED")
         return None
+
+    size = os.path.getsize(path)
+    print("FILE SIZE:", size)
+
+    if size == 0:
+        print("❌ FILE EMPTY")
+        os.remove(path)
+        return None
+
+    try:
+        with open(path, "rb") as f:
+            audio = f.read()
+        print("READ BYTES:", len(audio))
+
+    except Exception as e:
+        print("🔥 READ FAIL:", e)
+        traceback.print_exc()
+        return None
+
+    finally:
+        try:
+            os.remove(path)
+            print("TEMP FILE REMOVED")
+        except Exception as e:
+            print("TEMP REMOVE FAIL:", e)
+
+    print("✅ TTS SUCCESS")
+    print("========== TTS END ==========\n")
 
     return "data:audio/mp3;base64," + base64.b64encode(audio).decode()
-
 
 
 def calculate_honesty_indicator(answer: str, level: str) -> float:
