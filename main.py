@@ -10,6 +10,7 @@ except:
         pass
 
 
+import traceback
 
 sys.stdout.reconfigure(encoding='utf-8') if hasattr(sys.stdout, 'reconfigure') else None
 sys.stderr.reconfigure(encoding='utf-8') if hasattr(sys.stderr, 'reconfigure') else None
@@ -353,42 +354,77 @@ def abai_style_text(text: str) -> str:
 
 
 
+
+_last_tts_time = 0
+
+async def _tts_rate_limit():
+    global _last_tts_time
+    now = asyncio.get_event_loop().time()
+
+    if now - _last_tts_time < 3:
+        wait = 3 - (now - _last_tts_time)
+        print(f"TTS rate limit sleep: {wait:.2f}s")
+        await asyncio.sleep(wait)
+
+    _last_tts_time = asyncio.get_event_loop().time()
+
+
+
 async def text_to_abai_speech_safe(text: str):
 
     print("\n========== TTS START ==========")
+
+    if not text:
+        print("❌ EMPTY TEXT")
+        return None
+
+    # --- anti block: shorten ---
+    text = text[:350]
+
     print("TEXT LEN:", len(text))
     print("TEXT PREVIEW:", text[:120])
 
-    path = tempfile.mktemp(".mp3")
+    await _tts_rate_limit()
+
+    # --- safe temp file ---
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+        path = fp.name
+
     print("TEMP PATH:", path)
 
-    try:
-        print("→ Creating gTTS object...")
-        tts = gTTS(text=text, lang="ru")
+    # -------- gTTS retry --------
+    success = False
 
-        print("→ Saving mp3...")
-        tts.save(path)
+    for attempt in range(3):
+        try:
+            print(f"→ gTTS attempt {attempt+1}")
 
-        print("→ Save DONE")
+            tts = gTTS(text=text, lang="ru")
+            tts.save(path)
 
-    except Exception as e:
-        print("\n🔥 gTTS FAILED")
-        print("TYPE:", type(e))
-        print("ERROR:", str(e))
+            print("→ Save DONE")
+            success = True
+            break
 
-        print("\nTRACEBACK:")
-        traceback.print_exc()
+        except Exception as e:
+            print("\n🔥 gTTS FAILED")
+            print("ATTEMPT:", attempt+1)
+            print("TYPE:", type(e))
+            print("ERROR:", str(e))
+            traceback.print_exc()
 
-        # файл бар ма?
-        print("FILE EXISTS AFTER FAIL:", os.path.exists(path))
+            await asyncio.sleep(2 * (attempt + 1))
+
+    if not success:
+        print("❌ ALL gTTS ATTEMPTS FAILED")
 
         if os.path.exists(path):
-            print("FILE SIZE:", os.path.getsize(path))
+            os.remove(path)
 
         print("========== TTS FAIL END ==========\n")
         return None
 
-    # ---------- файл тексеру ----------
+    # -------- file checks --------
     if not os.path.exists(path):
         print("❌ FILE NOT CREATED")
         return None
@@ -401,9 +437,11 @@ async def text_to_abai_speech_safe(text: str):
         os.remove(path)
         return None
 
+    # -------- read file --------
     try:
         with open(path, "rb") as f:
             audio = f.read()
+
         print("READ BYTES:", len(audio))
 
     except Exception as e:
@@ -422,6 +460,7 @@ async def text_to_abai_speech_safe(text: str):
     print("========== TTS END ==========\n")
 
     return "data:audio/mp3;base64," + base64.b64encode(audio).decode()
+
 
 
 def calculate_honesty_indicator(answer: str, level: str) -> float:
