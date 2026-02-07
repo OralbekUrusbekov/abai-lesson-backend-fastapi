@@ -10,6 +10,8 @@ except:
         pass
 
 
+
+
 import traceback
 
 sys.stdout.reconfigure(encoding='utf-8') if hasattr(sys.stdout, 'reconfigure') else None
@@ -369,97 +371,42 @@ async def _tts_rate_limit():
     _last_tts_time = asyncio.get_event_loop().time()
 
 
+import edge_tts
+import tempfile
+import base64
+import os
 
 async def text_to_abai_speech_safe(text: str):
 
-    print("\n========== TTS START ==========")
-
-    if not text:
-        print("❌ EMPTY TEXT")
-        return None
-
-    # --- anti block: shorten ---
-    text = text[:350]
-
-    print("TEXT LEN:", len(text))
-    print("TEXT PREVIEW:", text[:120])
-
-    await _tts_rate_limit()
-
-    # --- safe temp file ---
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-        path = fp.name
-
-    print("TEMP PATH:", path)
-
-    # -------- gTTS retry --------
-    success = False
-
-    for attempt in range(3):
-        try:
-            print(f"→ gTTS attempt {attempt+1}")
-
-            tts = gTTS(text=text, lang="ru")
-            tts.save(path)
-
-            print("→ Save DONE")
-            success = True
-            break
-
-        except Exception as e:
-            print("\n🔥 gTTS FAILED")
-            print("ATTEMPT:", attempt+1)
-            print("TYPE:", type(e))
-            print("ERROR:", str(e))
-            traceback.print_exc()
-
-            await asyncio.sleep(2 * (attempt + 1))
-
-    if not success:
-        print("❌ ALL gTTS ATTEMPTS FAILED")
-
-        if os.path.exists(path):
-            os.remove(path)
-
-        print("========== TTS FAIL END ==========\n")
-        return None
-
-    # -------- file checks --------
-    if not os.path.exists(path):
-        print("❌ FILE NOT CREATED")
-        return None
-
-    size = os.path.getsize(path)
-    print("FILE SIZE:", size)
-
-    if size == 0:
-        print("❌ FILE EMPTY")
-        os.remove(path)
-        return None
-
-    # -------- read file --------
     try:
+        if not text:
+            return None
+
+        text = text[:500]
+
+        communicate = edge_tts.Communicate(
+            text,
+            voice="kk-KZ-DauletNeural",
+            rate="-8%",
+            pitch="-3Hz"
+        )
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+            path = fp.name
+
+        await communicate.save(path)
+
         with open(path, "rb") as f:
             audio = f.read()
 
-        print("READ BYTES:", len(audio))
+        os.remove(path)
+
+        return "data:audio/mp3;base64," + base64.b64encode(audio).decode()
 
     except Exception as e:
-        print("🔥 READ FAIL:", e)
-        traceback.print_exc()
+        print("EDGE TTS ERROR:", e)
         return None
 
-    finally:
-        try:
-            os.remove(path)
-            print("TEMP FILE REMOVED")
-        except Exception as e:
-            print("TEMP REMOVE FAIL:", e)
-
-    print("✅ TTS SUCCESS")
-    print("========== TTS END ==========\n")
-
-    return "data:audio/mp3;base64," + base64.b64encode(audio).decode()
 
 
 
