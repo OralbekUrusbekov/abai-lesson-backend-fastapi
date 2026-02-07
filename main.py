@@ -343,15 +343,40 @@ def safe_text_for_tts(text: str) -> str:
 
 
 def abai_style_text(text: str) -> str:
+    """Текстті Абай стиліне келтіру"""
     text = safe_str(text)
-    text = text.replace(".", ". ... ")
-    text = text.replace("!", "! ... ")
-    text = text.replace("?", "? ... ")
 
-    if not text.lower().startswith(("құрметті", "қарағым")):
-        text = "Қарағым. ... " + text
+    # Абай стиліне тән сөз тіркестерін қосу
+    abai_prefixes = [
+        "Құрметті оқырман,",
+        "Қымбатты жастар,",
+        "Балалар, тыңдаңыздар,",
+        "Азаматтар,"
+    ]
 
-    return text.strip()
+    import random
+    if not any(text.startswith(prefix.split(",")[0]) for prefix in abai_prefixes):
+        prefix = random.choice(abai_prefixes)
+        text = f"{prefix} {text}"
+
+    # Нүктелерді Абай стилінде жасау
+    text = text.replace(". ", ". ... ")
+    text = text.replace("! ", "! ... ")
+    text = text.replace("? ", "? ... ")
+
+    # Сөздерді қайталау (Абай стилі)
+    important_words = ["ақыл", "білім", "ғылым", "адамгершілік", "парасат"]
+    for word in important_words:
+        if word in text.lower():
+            sentences = text.split(". ")
+            for i, sentence in enumerate(sentences):
+                if word in sentence.lower():
+                    sentences[i] = sentence + " " + word.capitalize() + " дегеніміз - өмірдің негізі."
+            text = ". ".join(sentences)
+
+    return text
+
+
 
 
 
@@ -377,54 +402,75 @@ import tempfile
 
 
 async def text_to_abai_speech_safe(text: str):
-    print("\n========== EDGE TTS START ==========")
+    print("\n========== ABAI VOICE TTS START ==========")
 
     if not text:
         print("❌ EMPTY TEXT")
         return None
 
-    # Текстті қысқарту
-    text = text[:350]
+    # Текстті Абай стиліне келтіру
+    text = abai_style_text(text)
+    text = text[:300]  # Сәл қысқарақ, себебі стиль ұзарады
     print("TEXT LEN:", len(text))
-    print("TEXT PREVIEW:", text[:120])
+    print("TEXT PREVIEW:", text[:150])
 
     await _tts_rate_limit()
 
-    # Уақытша файл жасау
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
         path = fp.name
 
     print("TEMP PATH:", path)
 
+    # Ең жақсы Абай дауысы
+    abai_voices = [
+        {"name": "ru-RU-DmitryNeural", "rate": "-15%", "pitch": "-25Hz", "volume": "+20%"},
+        {"name": "ru-RU-SergeyNeural", "rate": "-10%", "pitch": "-20Hz", "volume": "+15%"},
+        {"name": "ru-RU-MaksimNeural", "rate": "-12%", "pitch": "-30Hz", "volume": "+10%"},
+    ]
 
-    voice = "ru-RU-SvetlanaNeural"  # Орыс тілі - әйел дауысы
-    print(f"VOICE: {voice}")
+    selected_voice = None
 
-    try:
-        # Edge-TTS қолдану
-        communicate = edge_tts.Communicate(
-            text=text,
-            voice=voice,
-            rate="+0%",
-            pitch="+0Hz"
-        )
+    for voice_config in abai_voices:
+        try:
+            print(f"\n→ Trying Abai voice: {voice_config['name']}")
 
-        # Аудио файлға сақтау
-        await communicate.save(path)
-        print("→ Edge-TTS save DONE")
+            # SSML қолдану (дәлірек басқару үшін)
+            ssml_text = f"""
+            <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="ru-RU">
+                <voice name="{voice_config['name']}">
+                    <prosody rate="{voice_config['rate']}" pitch="{voice_config['pitch']}" volume="{voice_config['volume']}">
+                        {text}
+                    </prosody>
+                </voice>
+            </speak>
+            """
 
-    except Exception as e:
-        print("\n🔥 EDGE TTS FAILED, trying fallback...")
-        print("ERROR:", str(e))
+            communicate = edge_tts.Communicate(
+                ssml_text,
+                voice=voice_config['name']
+            )
 
-        # Қате болса, көне gTTS-ке оралу
+            await communicate.save(path)
+
+            if os.path.exists(path) and os.path.getsize(path) > 1000:
+                selected_voice = voice_config['name']
+                print(f"✅ Abai voice selected: {voice_config['name']}")
+                break
+
+        except Exception as e:
+            print(f"❌ Voice {voice_config['name']} failed: {str(e)[:80]}")
+            continue
+
+    if not selected_voice:
+        print("\n🔥 ALL EDGE TTS VOICES FAILED, trying gTTS fallback...")
         try:
             from gtts import gTTS
-            tts = gTTS(text=text, lang="ru")
+            # gTTS үшін де ер адам дауысына ұқсату
+            tts = gTTS(text=text, lang='ru')
             tts.save(path)
             print("→ Fallback to gTTS successful")
         except Exception as e2:
-            print("→ Fallback also failed:", str(e2))
+            print(f"→ gTTS fallback also failed: {str(e2)}")
             if os.path.exists(path):
                 os.remove(path)
             print("========== TTS FAIL END ==========\n")
@@ -436,7 +482,7 @@ async def text_to_abai_speech_safe(text: str):
         return None
 
     size = os.path.getsize(path)
-    print("FILE SIZE:", size)
+    print(f"FILE SIZE: {size} bytes")
 
     if size == 0:
         print("❌ FILE EMPTY")
@@ -448,10 +494,19 @@ async def text_to_abai_speech_safe(text: str):
         with open(path, "rb") as f:
             audio = f.read()
 
-        print("READ BYTES:", len(audio))
+        print(f"READ BYTES: {len(audio)}")
+
+        # Қосымша аудио өңдеу (тереңдету үшін)
+        # Егер audio библиотекалары болса, мұны қолдануға болады
+        try:
+            import audioop
+            # Дыбысты тереңдету (егер audioop қол жетімді болса)
+            audio = audioop.mul(audio, 2, 1.2)  # Қарқынды арттыру
+        except:
+            pass  # Audioop жоқ болса, ештеңе жасамау
 
     except Exception as e:
-        print("🔥 READ FAIL:", e)
+        print(f"🔥 READ FAIL: {e}")
         traceback.print_exc()
         return None
 
@@ -460,12 +515,15 @@ async def text_to_abai_speech_safe(text: str):
             os.remove(path)
             print("TEMP FILE REMOVED")
         except Exception as e:
-            print("TEMP REMOVE FAIL:", e)
+            print(f"TEMP REMOVE FAIL: {e}")
 
-    print("✅ TTS SUCCESS")
+    print(f"✅ ABAI VOICE TTS SUCCESS")
+    print(f"   Voice: {selected_voice or 'gTTS fallback'}")
     print("========== TTS END ==========\n")
 
     return "data:audio/mp3;base64," + base64.b64encode(audio).decode()
+
+
 
 
 
